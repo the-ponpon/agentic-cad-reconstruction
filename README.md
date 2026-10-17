@@ -26,6 +26,23 @@ The method itself (what worked, what didn't, the review loop) is in **[PLAYBOOK.
   time of writing, so check its terms before reusing its code. This repository's MIT licence covers only the files here.
 - Trademarks mentioned in comments belong to their owners; this is a technical exercise with no affiliation.
 
+## Using it with Claude Code
+
+The repo is set up to be worked on by [Claude Code](https://claude.com/claude-code): `CLAUDE.md` gives the agent the
+method (the loop, the rules, where the example scripts are), and `PLAYBOOK.md` the details behind it.
+
+1. Clone the repo, install the requirements, and set up keel and a renderer (see Requirements).
+2. Make a folder for your object and put your reference photos in it, named `ref_<view>.png`.
+3. Start Claude Code in the repo (`claude`) and ask, for example:
+   - *"Read CLAUDE.md and PLAYBOOK.md. Reconstruct the object in `mybottle/` from its photos, using `perfume/` as
+     the template. Start by measuring the photos and fitting the cameras."*
+   - *"Render clay views from every fitted camera and build a comparison sheet."*
+   - *"Publish the photo/render pairs on the review page."*
+4. Review the renders on the feedback page (`tools/review_page/`), export the notes, and give the export to Claude:
+   *"Here is the review for iteration 2: write iteration_2_plan.md."* Approve the plan, let it execute, repeat.
+
+Claude does the measuring, modelling, fitting and rendering; you judge the results and steer each round.
+
 ## Layout
 
 | Folder | What | Main scripts |
@@ -33,6 +50,7 @@ The method itself (what worked, what didn't, the review loop) is in **[PLAYBOOK.
 | `perfume/` | model, cameras, render, review | `parade.py` (model), `fit_poses.py` + `fit_neck.py` (cameras), `section_overlay.py` (shape gate), `parade_lux.py` (LuxCore), `make_review.py` + `region_check.py` (review sheets), `cut_meshes.py` + `cutaway.py` (cutaway) |
 | `perfume/blend/` | edit the scene in Blender, render in LuxCore | `make_blend.py`, `read_layout.py`, `render_layout.sh` |
 | `perfume/` (motion) | orbit keys + video model | `orbit_segs.sh`, `orbit_ltx_3k.sh` |
+| `CLAUDE.md` | instructions for Claude Code: the loop, the rules, where the examples are | |
 | `tools/review_page/` | the feedback editor (photo vs render, marks, notes, export) | `index.html` |
 
 ## Requirements
