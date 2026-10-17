@@ -43,6 +43,16 @@ method (the loop, the rules, where the example scripts are), and `PLAYBOOK.md` t
 
 Claude does the measuring, modelling, fitting and rendering; you judge the results and steer each round.
 
+### The feedback editor
+
+![The feedback editor: photo and render side by side, numbered marks, a note per mark with severity, comment and sketch](docs/review_page.png)
+
+Each reference photo sits next to the render from the same fitted camera (side by side, or blended with a slider).
+You circle what's wrong (freehand with a mouse, or a circle with a finger on a phone), set a severity, and add a
+comment, a sketch, or nothing at all: an empty note asks Claude to find the difference itself by comparing the
+marked area closely. *Generate feedback.md* exports the review with one picture per note. (Screenshot with
+placeholder images: a clay render stands in for the photo, and the label is blurred.)
+
 ## Layout
 
 | Folder | What | Main scripts |
