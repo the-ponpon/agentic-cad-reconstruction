@@ -1,0 +1,53 @@
+{
+ "parts": [
+  {
+   "name": "glass",
+   "material": "glass"
+  },
+  {
+   "name": "liquid",
+   "material": "liquid"
+  },
+  {
+   "name": "collar",
+   "material": "chrome"
+  },
+  {
+   "name": "pump",
+   "material": "chrome"
+  },
+  {
+   "name": "dip_tube",
+   "material": "clear_plastic"
+  },
+  {
+   "name": "outlet",
+   "material": "satin_insert"
+  },
+  {
+   "name": "cap",
+   "material": "black_lacquer"
+  },
+  {
+   "name": "label",
+   "material": "paper"
+  }
+ ],
+ "W": 49.83,
+ "D": 49.83,
+ "H": 80.03,
+ "fill_z": 78.06700000000001,
+ "neck_r": 3.1710000000000003,
+ "cavity": [
+  25.066000000000003,
+  22.425,
+  8.305,
+  78.06700000000001
+ ],
+ "label": {
+  "w": 29.596000000000004,
+  "h": 41.827,
+  "z0": 29.596000000000004,
+  "y": -24.8093
+ }
+}

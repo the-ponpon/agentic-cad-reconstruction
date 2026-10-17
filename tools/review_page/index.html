@@ -1,0 +1,845 @@
+
+<title>Reconstruction Review</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a toolbar, then the photo | render pair (or one blended stage) with the notes rail beside it; stacks on phones */
+:root {
+  --bg: #eceef0;
+  --panel: #ffffff;
+  --ink: #15181c;
+  --muted: #5b646e;
+  --line: #d3d8dd;
+  --accent: #9a6a0c;
+  --accent-ink: #ffffff;
+  --mark: #10b4d3;
+  --mark-dim: rgba(16, 180, 211, .55);
+  --sketch: #ff3d8b;
+  --must: #c2410c;
+  --should: #a16207;
+  --minor: #56606b;
+  --danger: #b3261e;
+  --f-ui: "Schibsted Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111316; --panel: #1a1d21; --ink: #e7e9ec; --muted: #98a1ab; --line: #2b3036;
+    --accent: #e3ab3e; --accent-ink: #1a1306; --mark: #3fd8f2; --mark-dim: rgba(63, 216, 242, .5);
+    --must: #fb8a4c; --should: #e8b54a; --minor: #9aa3ad; --danger: #f2827a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111316; --panel: #1a1d21; --ink: #e7e9ec; --muted: #98a1ab; --line: #2b3036;
+  --accent: #e3ab3e; --accent-ink: #1a1306; --mark: #3fd8f2; --mark-dim: rgba(63, 216, 242, .5);
+  --must: #fb8a4c; --should: #e8b54a; --minor: #9aa3ad; --danger: #f2827a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-ui); font-size: 14px; }
+.wrap { padding-inline: 16px; padding-block: 14px 28px; max-width: 1500px; margin: 0 auto; display: grid; gap: 14px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+h1 { font-size: 20px; font-weight: 700; margin: 0; letter-spacing: -.01em; }
+.sub { color: var(--muted); font-size: 13px; }
+.sync { margin-left: auto; font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+.sync::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.sync[data-s="ok"]::before { background: #2f9e57; }
+.sync[data-s="local"]::before { background: var(--should); }
+.sync[data-s="err"]::before { background: var(--danger); }
+
+.bar { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel); }
+.seg button { font: inherit; font-size: 13px; border: 0; background: transparent; color: var(--ink); padding: 7px 12px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.seg .count { font-family: var(--f-mono); font-size: 11px; opacity: .75; }
+.lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-right: 6px; }
+.grp { display: inline-flex; align-items: center; }
+input[type="range"] { accent-color: var(--accent); width: 130px; }
+
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+.stages { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stages.single { grid-template-columns: minmax(0, 620px); justify-content: center; }
+figure { margin: 0; display: grid; gap: 6px; min-width: 0; }
+figcaption { font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+figcaption b { color: var(--ink); font-weight: 600; }
+.stage { position: relative; aspect-ratio: 1 / 1; max-width: 100%; background: var(--panel); border-radius: 6px; overflow: hidden; border: 1px solid var(--line); }
+.stage img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; user-select: none; -webkit-user-drag: none; pointer-events: none; }
+.stage svg { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+svg .body { fill: rgba(16, 180, 211, .08); stroke: var(--mark); stroke-width: 2; stroke-linejoin: round; cursor: move; vector-effect: non-scaling-stroke; }
+svg .halo { fill: none; stroke: rgba(0, 0, 0, .45); stroke-width: 4.5; vector-effect: non-scaling-stroke; pointer-events: none; }
+svg g.sel .body { stroke-width: 3; fill: rgba(16, 180, 211, .14); }
+svg .body.open { fill: none; }
+svg .hit { fill: none; stroke: transparent; stroke-width: var(--hitw, 14); vector-effect: non-scaling-stroke; cursor: move; pointer-events: stroke; }
+svg .sketch { fill: none; stroke: var(--sketch); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; pointer-events: none; opacity: .75; }
+svg .sketch.on { opacity: 1; stroke-width: 2.8; }
+.stage.drawing svg { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20'%3E%3Ccircle cx='10' cy='10' r='4' fill='%23ff3d8b'/%3E%3C/svg%3E") 10 10, crosshair; }
+.pad { display: grid; gap: 5px; }
+.padbar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 11.5px; color: var(--muted); }
+.padbar .pl { margin-right: auto; text-transform: uppercase; letter-spacing: .07em; }
+.padbar button { font: inherit; font-size: 11.5px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 5px; padding: 1px 7px; cursor: pointer; }
+.padbar button[aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: 0; }
+.padbar .sw { width: 16px; height: 16px; padding: 0; border-radius: 50%; }
+.padsvg { width: 100%; aspect-ratio: 4 / 3; background: #ffffff; border: 1px solid var(--line); border-radius: 6px; touch-action: none; cursor: crosshair; display: block; }
+.padsvg path { fill: none; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.drawbtn { font: inherit; font-size: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 6px; padding: 2px 8px; cursor: pointer; }
+.drawbtn[aria-pressed="true"] { background: var(--sketch); border-color: var(--sketch); color: #fff; }
+.clearsk { font: inherit; font-size: 11.5px; border: 0; background: none; color: var(--muted); cursor: pointer; text-decoration: underline; padding: 0; }
+.drawbar { font-size: 12.5px; background: var(--sketch); color: #fff; border-radius: 7px; padding: 7px 10px; display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+.drawbar button { font: inherit; font-size: 12px; border: 1px solid rgba(255,255,255,.7); background: transparent; color: #fff; border-radius: 6px; padding: 2px 8px; cursor: pointer; }
+svg .live { fill: none; stroke: var(--mark); stroke-width: 2; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; pointer-events: none; }
+svg .tag rect { fill: var(--mark); }
+svg .tag text { fill: #04252c; font-family: var(--f-mono); font-weight: 500; }
+
+.rail { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; max-height: calc(100vh - 40px); position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); }
+.rail-h { padding: 12px 14px 10px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.rail-h h2 { font-size: 15px; margin: 0; font-weight: 600; }
+.rail-h span { font-size: 12px; color: var(--muted); font-family: var(--f-mono); }
+.list { overflow: auto; padding: 10px; display: grid; gap: 10px; align-content: start; min-height: 120px; }
+.empty { color: var(--muted); font-size: 13px; line-height: 1.5; padding: 8px 4px; }
+.card { border: 1px solid var(--line); border-radius: 7px; padding: 9px 10px 10px; display: grid; gap: 8px; background: var(--bg); }
+.card.sel { border-color: var(--mark); box-shadow: 0 0 0 2px var(--mark-dim); }
+.card-h { display: flex; align-items: center; gap: 8px; }
+.num { font-family: var(--f-mono); font-size: 12px; font-weight: 500; background: var(--mark); color: #04252c; border-radius: 4px; padding: 1px 6px; cursor: pointer; border: 0; }
+.where { font-size: 11px; color: var(--muted); font-family: var(--f-mono); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.del { font: inherit; font-size: 12px; border: 0; background: none; color: var(--danger); cursor: pointer; padding: 2px 4px; }
+.sev { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.sev button { font: inherit; font-size: 11.5px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); border-radius: 999px; padding: 2px 9px; cursor: pointer; }
+.sev button[aria-pressed="true"][data-v="must"] { background: var(--must); border-color: var(--must); color: #fff; }
+.sev button[aria-pressed="true"][data-v="should"] { background: var(--should); border-color: var(--should); color: #fff; }
+.sev button[aria-pressed="true"][data-v="minor"] { background: var(--minor); border-color: var(--minor); color: #fff; }
+textarea { font: inherit; font-size: 13.5px; line-height: 1.45; width: 100%; resize: vertical; min-height: 64px; border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px; background: var(--panel); color: var(--ink); }
+textarea:focus, button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.rail-f { border-top: 1px solid var(--line); padding: 12px 14px; display: grid; gap: 6px; }
+.primary { font: inherit; font-weight: 600; font-size: 14px; border: 0; border-radius: 7px; background: var(--accent); color: var(--accent-ink); padding: 10px 12px; cursor: pointer; }
+.ghost { font: inherit; font-size: 13px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--ink); padding: 8px 12px; cursor: pointer; }
+.hint { font-size: 12px; color: var(--muted); line-height: 1.45; }
+
+.modal { position: fixed; inset: 0; background: rgba(8, 10, 12, .55); display: grid; place-items: center; padding: 16px; z-index: 10; }
+.sheet { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; width: min(860px, 100%); max-height: calc(100vh - 32px); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.sheet-h { padding: 14px 16px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.sheet-h h2 { font-size: 16px; margin: 0; }
+.sheet-body { overflow: auto; min-height: 0; }
+.figs { display: grid; gap: 10px; padding: 14px 16px 0; }
+.figs img { max-width: 100%; border: 1px solid var(--line); border-radius: 6px; }
+.sheet pre { margin: 0; padding: 14px 16px; overflow: auto; font-family: var(--f-mono); font-size: 12.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+.sheet-f { padding: 12px 16px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.sheet-f .hint { flex: 1; min-width: 200px; }
+
+@media (max-width: 980px) {
+  .main { grid-template-columns: minmax(0, 1fr); }
+  .rail { position: static; max-height: none; }
+}
+@media (max-width: 560px) {
+  .stages { grid-template-columns: minmax(0, 1fr); }
+}
+@media (pointer: coarse) { :root { --hitw: 34; } .seg button { padding: 10px 14px; } .sev button { padding: 6px 12px; font-size: 13px; } .num { padding: 4px 10px; font-size: 14px; } }
+.stage.scroll svg { touch-action: pan-y pinch-zoom; cursor: default; }
+.markbtn { font: inherit; font-size: 13px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px; padding: 7px 12px; cursor: pointer; }
+.markbtn[aria-pressed="true"] { background: var(--mark); border-color: var(--mark); color: #04252c; font-weight: 600; }
+#sideGrp[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Reconstruction Review</h1>
+    <span class="sub">Perfume bottle reconstruction · iteration <span id="iterNo">0</span><span id="pv"> · preview renders</span><span id="fin"> · finals</span></span>
+    <span class="sync" id="sync" data-s="wait">Connecting…</span>
+  </header>
+
+  <div class="bar">
+    <div class="seg" id="viewSeg" role="group" aria-label="View"></div>
+    <div class="grp"><span class="lbl">Render</span>
+      <div class="seg" id="renderSeg" role="group" aria-label="Render">
+        <button id="rLux" data-v="lux">Render</button>
+      </div>
+    </div>
+    <div class="grp"><span class="lbl">Layout</span>
+      <div class="seg" id="layoutSeg" role="group" aria-label="Layout">
+        <button id="lPair" data-v="pair">Side by side</button><button id="lBlend" data-v="blend">Blend</button>
+      </div>
+    </div>
+    <div class="grp" id="sideGrp" hidden><span class="lbl">Show</span>
+      <div class="seg" id="sideSeg" role="group" aria-label="Image shown">
+        <button id="sPhoto" data-v="photo">Photo</button><button id="sRender" data-v="render">Render</button>
+      </div>
+    </div>
+    <button class="markbtn" id="markBtn" aria-pressed="false">Mark</button>
+    <div class="grp" id="blendGrp" hidden><span class="lbl">Render</span><input id="blend" type="range" min="0" max="1" step="0.01" value="0.5" aria-label="Render opacity"></div>
+  </div>
+
+  <div class="drawbar" id="drawbar" hidden><span id="drawtxt"></span><button id="drawdone">Done drawing</button></div>
+
+  <div class="main">
+    <div class="stages" id="stages"></div>
+    <aside class="rail">
+      <div class="rail-h"><h2 id="railTitle">Notes</h2><span id="railCount"></span></div>
+      <div class="list" id="list"></div>
+      <div class="rail-f">
+        <button class="primary" id="gen">Generate feedback.md</button>
+        <div class="hint">On a phone: tap Mark, then put your finger on the centre of the area and drag outward to size a circle. Switch Photo / Render above. With a mouse, draw around a defect: press, trace, release. End near where you started to close an outline around an area; end anywhere else to keep an open line along an edge. It shows on both images at the same place. Drag inside it to move it; Delete removes the selected one. Draw on a note adds a sketch of what it should look like.</div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<div class="modal" id="modal" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <div class="sheet-h"><h2 id="mTitle">feedback.md</h2><span class="sub" id="mMeta"></span></div>
+    <div class="sheet-body"><div class="figs" id="figs"></div><pre id="mdOut"></pre></div>
+    <div class="sheet-f">
+      <span class="hint" id="mStatus"></span>
+      <button class="ghost" id="copyMd">Copy text</button>
+      <button class="ghost" id="saveMd" hidden>Save zip (text + pictures)</button>
+      <button class="primary" id="closeMd">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const ITER = 1;
+const ROUND = "r1";    // bump per review round: notes are stored per round
+const PREVIEW = false;   // true while the renders are quick previews
+const VIEWS = [
+  { id: "front", label: "Front" },
+  { id: "three_quarter", label: "Three-quarter" },
+  { id: "top", label: "Top" },
+  { id: "neck", label: "Neck" },
+];
+const SRC = { ref: [2000, 2000], lux: [1000, 1000], clay: [1000, 1000] };
+const RNAME = { lux: "final render", clay: "clay render" };
+const SEV = [["must", "Must fix"], ["should", "Should fix"], ["minor", "Minor"]];
+const VB = [400, 400];
+
+const COARSE = matchMedia("(pointer: coarse)").matches;
+const narrow = () => innerWidth < 700;
+const ui = { view: "front", render: "lux", layout: "pair", blend: 0.5, sel: null, drawFor: null, mark: !COARSE, side: "photo" };
+const notes = new Map();
+let store = null, downloads = null, assets = null;
+
+const $ = (id) => document.getElementById(id);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const r3 = (v) => Math.round(v * 1000) / 1000;
+
+function setSync(s, text) { const el = $("sync"); el.dataset.s = s; el.textContent = text; }
+
+/* ---------- storage ---------- */
+const writing = new Map(); // id -> {busy, again}
+function persist(id) {
+  const st = writing.get(id) || { busy: false, again: false };
+  writing.set(id, st);
+  if (st.busy) { st.again = true; return; }
+  st.busy = true;
+  const n = notes.get(id);
+  const job = n ? store.save(clean(n)) : store.remove(id);
+  Promise.resolve(job).then(() => { if (store.kind === "db") setSync("ok", "Saved"); })
+    .catch(() => setSync("err", "Not saved: check that you can edit this page"))
+    .finally(() => { st.busy = false; if (st.again) { st.again = false; persist(id); } else { writing.delete(id); const m = notes.get(id); if (m) m._dirty = false; } });
+}
+const timers = new Map();
+function persistSoon(id, ms = 600) { clearTimeout(timers.get(id)); timers.set(id, setTimeout(() => persist(id), ms)); }
+function clean(n) { const { _dirty, ...rest } = n; return rest; }
+
+async function initStore() {
+  let db = null;
+  try { db = window.claude && window.claude.use ? await window.claude.use("db") : null; } catch { db = null; }
+  try { downloads = window.claude && window.claude.use ? await window.claude.use("downloads") : null; } catch { downloads = null; }
+  try { assets = window.claude && window.claude.use ? await window.claude.use("assets") : null; } catch { assets = null; }
+  if (db) {
+    const col = db.collection("notes");
+    store = {
+      kind: "db",
+      save: (n) => col.doc(n.id).set(n),
+      remove: (id) => col.doc(id).delete(),
+      exportMd: (md, count, figures) => db.doc("exports/iter" + ROUND).set({ iter: ROUND, md, count, figures: figures || {}, at: new Date().toISOString() }),
+    };
+    setSync("ok", "Saved for Claude");
+    col.where("iter", "==", ROUND).onSnapshot((snap) => {
+      for (const ch of snap.docChanges()) {
+        const id = ch.doc.id, local = notes.get(id);
+        if (local && (local._dirty || writing.has(id))) continue;
+        if (ch.type === "removed") notes.delete(id);
+        else notes.set(id, { ...ch.doc.data(), id });
+      }
+      render();
+    }, () => setSync("err", "Live sync stopped: reload the page"));
+  } else {
+    const KEY = "reconstruction-review-notes";
+    store = {
+      kind: "local",
+      save: () => { try { localStorage.setItem(KEY, JSON.stringify([...notes.values()].map(clean))); } catch {} },
+      remove: () => { try { localStorage.setItem(KEY, JSON.stringify([...notes.values()].map(clean))); } catch {} },
+      exportMd: async () => {},
+    };
+    try { for (const n of JSON.parse(localStorage.getItem(KEY) || "[]")) if (n.iter === ROUND) notes.set(n.id, n); } catch {}
+    setSync("local", "Saved in this browser only");
+    render();
+  }
+}
+
+/* ---------- geometry ---------- */
+function where(n) {
+  const h = n.cx < 0.36 ? "left" : n.cx > 0.64 ? "right" : "centre";
+  const v = n.cy < 0.2 ? "top" : n.cy < 0.4 ? "upper" : n.cy < 0.6 ? "middle" : n.cy < 0.8 ? "lower" : "bottom";
+  return v + " " + h;
+}
+function pxBox(n, [w, h]) {
+  return `x ${Math.round(clamp(n.cx - n.rx, 0, 1) * w)}–${Math.round(clamp(n.cx + n.rx, 0, 1) * w)}, y ${Math.round(clamp(n.cy - n.ry, 0, 1) * h)}–${Math.round(clamp(n.cy + n.ry, 0, 1) * h)}`;
+}
+function viewNotes(v) {
+  return [...notes.values()].filter((n) => n.view === v).sort((a, b) => (a.created < b.created ? -1 : a.created > b.created ? 1 : 0));
+}
+
+/* ---------- toolbar ---------- */
+function renderBar() {
+  const seg = $("viewSeg");
+  if (!seg.children.length) {
+    for (const v of VIEWS) {
+      const b = document.createElement("button");
+      b.id = "v_" + v.id; b.dataset.v = v.id;
+      b.innerHTML = `<span></span><span class="count"></span>`;
+      b.firstChild.textContent = v.label;
+      b.onclick = () => { ui.view = v.id; ui.sel = null; ui.drawFor = null; buildStages(); render(); };
+      seg.appendChild(b);
+    }
+  }
+  for (const b of seg.children) {
+    b.setAttribute("aria-pressed", b.dataset.v === ui.view);
+    const c = viewNotes(b.dataset.v).length;
+    b.lastChild.textContent = c ? c : "";
+  }
+  for (const b of $("renderSeg").children) b.setAttribute("aria-pressed", b.dataset.v === ui.render);
+  for (const b of $("layoutSeg").children) b.setAttribute("aria-pressed", b.dataset.v === ui.layout);
+  $("blendGrp").hidden = ui.layout !== "blend";
+  $("markBtn").setAttribute("aria-pressed", ui.mark || !!ui.drawFor);
+  $("markBtn").textContent = ui.mark || ui.drawFor ? "Marking: on" : "Mark";
+  $("sideGrp").hidden = !(narrow() && ui.layout === "pair");
+  for (const b of $("sideSeg").children) b.setAttribute("aria-pressed", b.dataset.v === ui.side);
+  for (const st of document.querySelectorAll(".stage")) st.classList.toggle("scroll", !(ui.mark || ui.drawFor));
+}
+$("markBtn").onclick = () => { ui.mark = !ui.mark; if (!ui.mark) ui.drawFor = null; render(); };
+$("sideSeg").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; ui.side = b.dataset.v; buildStages(); render(); };
+let wasNarrow = narrow();
+addEventListener("resize", () => { if (drag) return; const n = narrow(); if (n !== wasNarrow) { wasNarrow = n; buildStages(); render(); } else drawShapes(); });
+$("renderSeg").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; ui.render = b.dataset.v; buildStages(); render(); };
+$("layoutSeg").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; ui.layout = b.dataset.v; buildStages(); render(); };
+$("blend").oninput = (e) => { ui.blend = +e.target.value; const t = document.querySelector(".stage .top"); if (t) t.style.opacity = ui.blend; };
+
+/* ---------- stages ---------- */
+const NS = "http://www.w3.org/2000/svg";
+let svgs = [];
+function buildStages() {
+  const host = $("stages");
+  host.innerHTML = "";
+  host.classList.toggle("single", ui.layout === "blend");
+  svgs = [];
+  const v = ui.view, rv = ui.render;
+  const mk = (cap, imgs) => {
+    const fig = document.createElement("figure");
+    const fc = document.createElement("figcaption");
+    fc.innerHTML = cap;
+    const st = document.createElement("div");
+    st.className = "stage";
+    for (const [src, cls] of imgs) {
+      const im = document.createElement("img");
+      im.src = src; im.alt = ""; if (cls) im.className = cls;
+      st.appendChild(im);
+    }
+    const svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("viewBox", `0 0 ${VB[0]} ${VB[1]}`);
+    svg.setAttribute("preserveAspectRatio", "none");
+    st.appendChild(svg);
+    fig.append(fc, st);
+    host.appendChild(fig);
+    wire(svg);
+    svgs.push(svg);
+  };
+  if (ui.layout === "pair" && narrow()) {
+    host.classList.add("single");
+    if (ui.side === "photo") mk(`<b>Photo</b><span>ref_${v}.png</span>`, [[`img/ref_${v}.jpg`]]);
+    else mk(`<b>Render</b><span>${rv}_${v}.png</span>`, [[`img/${rv}_${v}.jpg`]]);
+  } else if (ui.layout === "pair") {
+    mk(`<b>Photo</b><span>ref_${v}.png</span>`, [[`img/ref_${v}.jpg`]]);
+    mk(`<b>${rv === "lux" ? "Render" : "Clay render"}</b><span>${rv}_${v}.png</span>`, [[`img/${rv}_${v}.jpg`]]);
+  } else {
+    mk(`<b>Photo + ${rv === "lux" ? "final" : "clay"} render</b><span>slider sets the render's opacity</span>`, [[`img/ref_${v}.jpg`], [`img/${rv}_${v}.jpg`, "top"]]);
+    const t = host.querySelector(".top"); t.style.opacity = ui.blend;
+  }
+}
+
+function ellipsePts(n) {
+  const out = [];
+  for (let k = 0; k < 36; k++) { const t = (k / 36) * 2 * Math.PI; out.push([r3(n.cx + n.rx * Math.cos(t)), r3(n.cy + n.ry * Math.sin(t))]); }
+  return out;
+}
+const shapeOf = (n) => (n.pts && n.pts.length > 2 ? n.pts : ellipsePts(n));
+const strokePts = (st) => { const o = []; for (let i = 0; i + 1 < st.length; i += 2) o.push([st[i], st[i + 1]]); return o; };
+const isClosed = (n) => !(n.pts && n.closed === false);
+const pathD = (pts, closed = true) => "M" + pts.map(([x, y]) => `${(x * VB[0]).toFixed(1)},${(y * VB[1]).toFixed(1)}`).join("L") + (closed ? "Z" : "");
+function fitBox(n) {
+  const xs = n.pts.map((p) => p[0]), ys = n.pts.map((p) => p[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  n.cx = r3((x0 + x1) / 2); n.cy = r3((y0 + y1) / 2); n.rx = r3((x1 - x0) / 2); n.ry = r3((y1 - y0) / 2);
+}
+function simplify(pts, eps) {   // Ramer–Douglas–Peucker on an open polyline
+  if (pts.length < 3) return pts;
+  const [ax, ay] = pts[0], [bx, by] = pts[pts.length - 1];
+  const L = Math.hypot(bx - ax, by - ay) || 1e-9;
+  let dm = 0, im = 0;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const d = Math.abs((bx - ax) * (ay - pts[i][1]) - (ax - pts[i][0]) * (by - ay)) / L;
+    if (d > dm) { dm = d; im = i; }
+  }
+  if (dm <= eps) return [pts[0], pts[pts.length - 1]];
+  return simplify(pts.slice(0, im + 1), eps).slice(0, -1).concat(simplify(pts.slice(im), eps));
+}
+
+function drawShapes() {
+  const list = viewNotes(ui.view);
+  for (const svg of svgs) {
+    const scale = VB[0] / Math.max(1, svg.getBoundingClientRect().width);
+    const fs = 12 * scale;
+    svg.innerHTML = "";
+    list.forEach((n, i) => {
+      const g = document.createElementNS(NS, "g");
+      if (n.id === ui.sel) g.classList.add("sel");
+      const pts = shapeOf(n), closed = isClosed(n), d = pathD(pts, closed);
+      const p1 = document.createElementNS(NS, "path"); p1.setAttribute("class", "halo"); p1.setAttribute("d", d);
+      const p2 = document.createElementNS(NS, "path"); p2.setAttribute("class", closed ? "body" : "body open"); p2.setAttribute("d", d);
+      p2.dataset.id = n.id; p2.dataset.role = "body";
+      g.append(p1, p2);
+      if (!closed) {   // a wide invisible stroke so a thin open line is easy to grab
+        const hit = document.createElementNS(NS, "path"); hit.setAttribute("class", "hit"); hit.setAttribute("d", d);
+        hit.dataset.id = n.id; hit.dataset.role = "body"; g.appendChild(hit);
+      }
+      const top = pts.reduce((a, b) => (b[1] < a[1] ? b : a));        // label above the outline's highest point
+      const big = COARSE ? 1.5 : 1, lbl = String(i + 1), tw = (lbl.length * 7.6 + 8) * scale * big, th = 17 * scale * big;
+      const tx = clamp(top[0] * VB[0] - tw / 2, 0, VB[0] - tw), ty = clamp(top[1] * VB[1] - th - 3 * scale, 0, VB[1] - th);
+      const tag = document.createElementNS(NS, "g"); tag.setAttribute("class", "tag");
+      const rect = document.createElementNS(NS, "rect");
+      rect.setAttribute("x", tx); rect.setAttribute("y", ty); rect.setAttribute("width", tw); rect.setAttribute("height", th); rect.setAttribute("rx", 3 * scale);
+      rect.dataset.id = n.id; rect.dataset.role = "body";
+      const t = document.createElementNS(NS, "text");
+      t.setAttribute("x", tx + 4 * scale * big); t.setAttribute("y", ty + 12.5 * scale * big); t.setAttribute("font-size", fs * big);
+      t.style.pointerEvents = "none"; t.textContent = lbl;
+      tag.append(rect, t); g.appendChild(tag);
+      svg.appendChild(g);
+    });
+    // drawings attached to notes (what it should look like), in their own colour
+    for (const n of list) {
+      for (const st of n.sketch || []) {
+        if (!st || st.length < 4) continue;
+        const pth = document.createElementNS(NS, "path");
+        pth.setAttribute("class", n.id === ui.drawFor || n.id === ui.sel ? "sketch on" : "sketch");
+        pth.setAttribute("d", pathD(strokePts(st), false));
+        svg.appendChild(pth);
+      }
+    }
+    if (drag && drag.role === "sketch" && drag.pts.length > 1) {
+      const pth = document.createElementNS(NS, "path");
+      pth.setAttribute("class", "sketch on");
+      pth.setAttribute("d", pathD(drag.pts, false));
+      svg.appendChild(pth);
+    }
+    svg.parentElement.classList.toggle("drawing", !!ui.drawFor);
+    if (drag && drag.role === "new" && drag.pts && drag.pts.length > 1) {
+      const live = document.createElementNS(NS, "path");
+      live.setAttribute("class", "live");
+      live.setAttribute("d", "M" + drag.pts.map(([x, y]) => `${(x * VB[0]).toFixed(1)},${(y * VB[1]).toFixed(1)}`).join("L"));
+      svg.appendChild(live);
+    }
+  }
+}
+
+function norm(e, svg) {
+  const r = svg.getBoundingClientRect();
+  return { x: clamp((e.clientX - r.left) / r.width, 0, 1), y: clamp((e.clientY - r.top) / r.height, 0, 1) };
+}
+let drag = null;
+function wire(svg) {
+  svg.addEventListener("touchstart", (e) => { if (ui.mark || ui.drawFor) e.preventDefault(); }, { passive: false });
+  svg.addEventListener("touchmove", (e) => { if (drag) e.preventDefault(); }, { passive: false });
+  svg.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    const p = norm(e, svg);
+    const t = e.target.closest("[data-role]");
+    if (ui.drawFor && notes.has(ui.drawFor)) {          // drawing mode: every stroke belongs to that note's drawing
+      drag = { svg, role: "sketch", id: ui.drawFor, pts: [[p.x, p.y]], moved: false };
+    } else if (!ui.mark) {
+      if (t) { ui.sel = t.dataset.id; render(); focusNote(t.dataset.id); }
+      return;
+    } else if (t) {
+      const n = notes.get(t.dataset.id);
+      ui.sel = n.id;
+      drag = { svg, role: "body", id: n.id, start: p, orig: shapeOf(n).map((q) => q.slice()), moved: false };
+    } else {
+      drag = { svg, role: "new", id: null, start: p, pts: [[p.x, p.y]], moved: false, wasSel: ui.sel, circle: e.pointerType === "touch" || e.pointerType === "pen" };
+      ui.sel = null;
+    }
+    svg.setPointerCapture(e.pointerId);
+    e.preventDefault();
+    render();
+  });
+  svg.addEventListener("pointermove", (e) => {
+    if (!drag || drag.svg !== svg) return;
+    const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+    for (const ev of evs.length ? evs : [e]) {
+      const p = norm(ev, svg);
+      if (drag.role === "new" && drag.circle) {
+        const r = drag.svg.getBoundingClientRect(), asp = r.width / r.height;
+        const rx = Math.hypot((p.x - drag.start.x), (p.y - drag.start.y) / asp), ry = rx * asp;
+        drag.pts = []; for (let k = 0; k < 40; k++) { const t = (k / 40) * 2 * Math.PI; drag.pts.push([clamp(drag.start.x + rx * Math.cos(t), 0, 1), clamp(drag.start.y + ry * Math.sin(t), 0, 1)]); }
+        drag.pts.push(drag.pts[0]); drag.moved = rx > 0.01;
+      } else if (drag.role === "new" || drag.role === "sketch") {
+        const last = drag.pts[drag.pts.length - 1];
+        if (Math.hypot(p.x - last[0], p.y - last[1]) > 0.0025) { drag.pts.push([p.x, p.y]); drag.moved = true; }
+      } else {
+        const dx = p.x - drag.start.x, dy = p.y - drag.start.y;
+        if (!drag.moved && Math.hypot(dx, dy) < 0.006) continue;
+        drag.moved = true;
+        const n = notes.get(drag.id); if (!n) return;
+        n.pts = drag.orig.map(([x, y]) => [clamp(x + dx, 0, 1), clamp(y + dy, 0, 1)]);
+        n._dirty = true;
+      }
+    }
+    drawShapes();
+  });
+  const end = () => {
+    if (!drag || drag.svg !== svg) return;
+    const d = drag; drag = null;
+    if (d.role === "sketch") {
+      const n = notes.get(d.id);
+      if (n && d.pts.length > 1) {
+        // stored as flat [x, y, x, y, ...] lists: one array level per stroke keeps the document simple
+        n.sketch = [...(n.sketch || []), simplify(d.pts, 0.001).flatMap(([x, y]) => [r3(x), r3(y)])];
+        n._dirty = true;
+        persist(n.id);
+      }
+      render();
+      return;
+    }
+    if (d.role === "new") {
+      const xs = d.pts.map((q) => q[0]), ys = d.pts.map((q) => q[1]);
+      const span = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+      if (d.pts.length < 4 || span < 0.012) { render(); return; }   // a click or a tiny scribble: nothing to keep
+      // closed only when the stroke ends back near its start; otherwise it stays an open line (to follow an edge)
+      const [sx0, sy0] = d.pts[0], [ex, ey] = d.pts[d.pts.length - 1];
+      const closed = d.circle || Math.hypot(ex - sx0, ey - sy0) < Math.max(COARSE ? 0.05 : 0.02, span * (COARSE ? 0.2 : 0.12));
+      const id = addNote(d.circle ? d.pts.slice(0, -1) : simplify(d.pts, 0.0015), closed);
+      ui.sel = id;
+      persist(id);
+      render();
+      focusNote(id);
+      if (narrow()) { const c = document.querySelector(`.card[data-id="${id}"]`); if (c) c.scrollIntoView({ block: "center", behavior: "smooth" }); }
+    } else if (d.moved) {
+      const n = notes.get(d.id);
+      if (n) { n.pts = n.pts.map(([x, y]) => [r3(x), r3(y)]); fitBox(n); persist(d.id); }
+      render();
+    }
+  };
+  svg.addEventListener("pointerup", end);
+  svg.addEventListener("pointercancel", end);
+}
+
+function addNote(pts, closed) {
+  const id = "n" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const n = { id, iter: ROUND, view: ui.view, render: ui.render, pts: pts.map(([x, y]) => [r3(x), r3(y)]), closed, text: "", severity: "should", created: new Date().toISOString(), _dirty: true };
+  fitBox(n);
+  notes.set(id, n);
+  return id;
+}
+function removeNote(id) {
+  notes.delete(id);
+  if (ui.sel === id) ui.sel = null;
+  persist(id);
+  render();
+}
+function focusNote(id) {
+  const ta = document.querySelector(`.card[data-id="${id}"] textarea`);
+  if (ta) { ta.focus({ preventScroll: true }); ta.closest(".card").scrollIntoView({ block: "nearest" }); }
+}
+
+/* ---------- notes rail ---------- */
+function renderList() {
+  const list = viewNotes(ui.view);
+  const host = $("list");
+  $("railTitle").textContent = "Notes · " + VIEWS.find((v) => v.id === ui.view).label;
+  const total = notes.size;
+  $("railCount").textContent = `${list.length} here · ${total} total`;
+  const keep = new Set(list.map((n) => n.id));
+  for (const c of [...host.querySelectorAll(".card")]) if (!keep.has(c.dataset.id)) c.remove();
+  let emp = host.querySelector(".empty");
+  if (!list.length) {
+    if (!emp) { emp = document.createElement("p"); emp.className = "empty"; emp.textContent = "No notes on this view yet. Trace around a difference on the photo or the render, then write what should change."; host.appendChild(emp); }
+  } else if (emp) emp.remove();
+  list.forEach((n, i) => {
+    let c = host.querySelector(`.card[data-id="${n.id}"]`);
+    if (!c) {
+      c = document.createElement("div");
+      c.className = "card"; c.dataset.id = n.id;
+      c.innerHTML = `<div class="card-h"><button class="num" title="Select outline"></button><span class="where"></span><button class="drawbtn" title="Draw on the images for this note">Draw</button><button class="del">Delete</button></div>
+        <div class="sev"></div><textarea placeholder="Optional. Leave empty to let Claude infer the issue by closely comparing the marked area in both images."></textarea>
+        <div class="pad"><div class="padbar"><span class="pl">Sketch</span><button class="sw" data-c="#15181c" style="background:#15181c" title="Black pen" aria-label="Black pen"></button><button class="sw" data-c="#ff3d8b" style="background:#ff3d8b" title="Pink pen" aria-label="Pink pen"></button><button class="undo">Undo</button><button class="clr">Clear</button></div>
+        <svg class="padsvg" viewBox="0 0 400 300" preserveAspectRatio="none" aria-label="Sketch area"></svg></div>`;
+      c.querySelector("textarea").id = "t_" + n.id;
+      const sev = c.querySelector(".sev");
+      for (const [v, l] of SEV) { const b = document.createElement("button"); b.dataset.v = v; b.textContent = l; sev.appendChild(b); }
+      sev.onclick = (e) => { const b = e.target.closest("button"); if (!b) return; const m = notes.get(n.id); m.severity = b.dataset.v; m._dirty = true; persist(n.id); render(); };
+      c.querySelector(".num").onclick = () => { ui.sel = n.id; render(); };
+      c.querySelector(".del").onclick = () => removeNote(n.id);
+      wirePad(c, n.id);
+      c.querySelector(".drawbtn").onclick = () => { ui.drawFor = ui.drawFor === n.id ? null : n.id; ui.sel = n.id; render(); };
+      const cl = document.createElement("button"); cl.className = "clearsk"; cl.textContent = "Clear drawing";
+      cl.onclick = () => { const m = notes.get(n.id); m.sketch = []; m._dirty = true; persist(n.id); render(); };
+      c.appendChild(cl);
+      const ta = c.querySelector("textarea");
+      ta.oninput = () => { const m = notes.get(n.id); m.text = ta.value; m._dirty = true; persistSoon(n.id); };
+      ta.onfocus = () => { if (ui.sel !== n.id) { ui.sel = n.id; drawShapes(); markSel(); } };
+      ta.onblur = () => { clearTimeout(timers.get(n.id)); const m = notes.get(n.id); if (m && m._dirty) persist(n.id); };
+    }
+    // move only when out of place: re-inserting the card that holds the focused textarea drops its focus
+    if (host.children[i] !== c) host.insertBefore(c, host.children[i] || null);
+    c.querySelector(".num").textContent = i + 1;
+    const inferOnly = !(n.text || "").trim() && !((n.sketch || []).length) && !((n.pad || []).length);
+    c.querySelector(".where").textContent = `${where(n)} · ${n.render === "clay" ? "clay" : "final"}${inferOnly ? " · infer" : ""}`;
+    for (const b of c.querySelectorAll(".sev button")) b.setAttribute("aria-pressed", b.dataset.v === n.severity);
+    drawPad(c, n);
+    const ta = c.querySelector("textarea");
+    if (document.activeElement !== ta && ta.value !== (n.text || "")) ta.value = n.text || "";
+  });
+  markSel();
+}
+/* ---------- sketch pad: free drawing per note, kept as strokes in 0-1 pad coordinates ---------- */
+let padPen = "#15181c";
+function drawPad(c, n, live) {
+  const svg = c.querySelector(".padsvg");
+  svg.innerHTML = "";
+  const strokes = [...(n.pad || []), ...(live ? [live] : [])];
+  for (const st of strokes) {
+    const P = strokePts(st.p || []);
+    if (P.length < 2) continue;
+    const pth = document.createElementNS(NS, "path");
+    pth.setAttribute("d", "M" + P.map(([x, y]) => `${(x * 400).toFixed(1)},${(y * 300).toFixed(1)}`).join("L"));
+    pth.setAttribute("stroke", st.c || "#15181c");
+    svg.appendChild(pth);
+  }
+  for (const b of c.querySelectorAll(".padbar .sw")) b.setAttribute("aria-pressed", b.dataset.c === padPen);
+}
+function wirePad(c, id) {
+  const svg = c.querySelector(".padsvg");
+  let live = null;
+  const at = (e) => { const r = svg.getBoundingClientRect(); return [clamp((e.clientX - r.left) / r.width, 0, 1), clamp((e.clientY - r.top) / r.height, 0, 1)]; };
+  svg.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    const [x, y] = at(e);
+    live = { c: padPen, p: [x, y] };
+    svg.setPointerCapture(e.pointerId); e.preventDefault();
+    if (ui.sel !== id) { ui.sel = id; drawShapes(); markSel(); }
+  });
+  svg.addEventListener("pointermove", (e) => {
+    if (!live) return;
+    for (const ev of (e.getCoalescedEvents ? e.getCoalescedEvents() : [e])) {
+      const [x, y] = at(ev), n = live.p.length;
+      if (Math.hypot(x - live.p[n - 2], y - live.p[n - 1]) > 0.004) live.p.push(x, y);
+    }
+    drawPad(c, notes.get(id), live);
+  });
+  const end = () => {
+    if (!live) return;
+    const st = live; live = null;
+    const n = notes.get(id);
+    if (n && st.p.length >= 4) {
+      const P = simplify(strokePts(st.p), 0.0012).flatMap(([x, y]) => [r3(x), r3(y)]);
+      n.pad = [...(n.pad || []), { c: st.c, p: P }];
+      n._dirty = true; persist(id);
+    }
+    if (n) drawPad(c, n);
+  };
+  svg.addEventListener("pointerup", end);
+  svg.addEventListener("pointercancel", end);
+  for (const b of c.querySelectorAll(".padbar .sw")) b.onclick = () => { padPen = b.dataset.c; for (const card of $("list").querySelectorAll(".card")) { const m = notes.get(card.dataset.id); if (m) drawPad(card, m); } };
+  c.querySelector(".padbar .undo").onclick = () => { const n = notes.get(id); if (n && n.pad && n.pad.length) { n.pad = n.pad.slice(0, -1); n._dirty = true; persist(id); drawPad(c, n); } };
+  c.querySelector(".padbar .clr").onclick = () => { const n = notes.get(id); if (n && n.pad && n.pad.length) { n.pad = []; n._dirty = true; persist(id); drawPad(c, n); } };
+}
+
+function markSel() { for (const c of $("list").querySelectorAll(".card")) c.classList.toggle("sel", c.dataset.id === ui.sel); }
+
+function render() {
+  renderBar(); drawShapes(); renderList();
+  const dn = ui.drawFor && notes.get(ui.drawFor);
+  if (!dn && ui.drawFor) ui.drawFor = null;
+  $("drawbar").hidden = !dn;
+  if (dn) $("drawtxt").textContent = `Drawing on note ${viewNotes(dn.view).indexOf(dn) + 1}: sketch what it should look like on either image.`;
+  for (const c of $("list").querySelectorAll(".card")) {
+    c.querySelector(".drawbtn").setAttribute("aria-pressed", c.dataset.id === ui.drawFor);
+    const m = notes.get(c.dataset.id);
+    c.querySelector(".clearsk").hidden = !(m && m.sketch && m.sketch.length);
+  }
+}
+$("drawdone").onclick = () => { ui.drawFor = null; render(); };
+
+document.addEventListener("keydown", (e) => {
+  const tag = (document.activeElement && document.activeElement.tagName) || "";
+  if (!$("modal").hidden) { if (e.key === "Escape") closeModal(); return; }
+  if (tag === "TEXTAREA" || tag === "INPUT") return;
+  if ((e.key === "Delete" || e.key === "Backspace") && ui.sel) { e.preventDefault(); removeNote(ui.sel); }
+  if (e.key === "Escape") { if (ui.drawFor) ui.drawFor = null; else ui.sel = null; render(); }
+});
+window.addEventListener("resize", () => drawShapes());
+
+/* ---------- feedback.md + one picture per note ---------- */
+const figName = (n) => `${n.view}_${viewNotes(n.view).indexOf(n) + 1}.png`;
+const loadImg = (src) => new Promise((ok, no) => { const im = new Image(); im.onload = () => ok(im); im.onerror = no; im.src = src; });
+
+async function figure(n) {
+  /* the photo crop next to the render crop, the note's outline (cyan) and drawing (pink) on both */
+  const photo = await loadImg(`img/ref_${n.view}.jpg`), rend = await loadImg(`img/${n.render || "lux"}_${n.view}.jpg`);
+  const pts = [...shapeOf(n), ...(n.sketch || []).flatMap(strokePts)];
+  let x0 = Math.min(...pts.map((p) => p[0])), x1 = Math.max(...pts.map((p) => p[0]));
+  let y0 = Math.min(...pts.map((p) => p[1])), y1 = Math.max(...pts.map((p) => p[1]));
+  const pw = Math.max(0.06, (x1 - x0) * 0.3), ph = Math.max(0.05, (y1 - y0) * 0.3);
+  x0 = clamp(x0 - pw, 0, 1); x1 = clamp(x1 + pw, 0, 1); y0 = clamp(y0 - ph, 0, 1); y1 = clamp(y1 + ph, 0, 1);
+  const W = photo.naturalWidth, H = photo.naturalHeight;
+  const cw = (x1 - x0) * W, ch = (y1 - y0) * H;
+  const k = Math.min(560 / cw, 640 / ch, 2.5), tw = Math.round(cw * k), th = Math.round(ch * k);
+  const head = 34, gap = 10;
+  const padS = (n.pad || []).filter((st) => st && st.p && st.p.length >= 4);
+  const pw3 = padS.length ? Math.round(th * 4 / 3) : 0;
+  const cv = document.createElement("canvas");
+  cv.width = tw * 2 + gap * 3 + (pw3 ? pw3 + gap : 0); cv.height = th + head + gap;
+  const g = cv.getContext("2d");
+  g.fillStyle = "#ffffff"; g.fillRect(0, 0, cv.width, cv.height);
+  g.fillStyle = "#15181c"; g.font = "600 15px system-ui, sans-serif";
+  const label = `${VIEWS.find((v) => v.id === n.view).label} ${viewNotes(n.view).indexOf(n) + 1} · ${SEV.find(([x]) => x === n.severity)[1]}`;
+  g.fillText(label, gap, 22);
+  g.font = "12px system-ui, sans-serif"; g.fillStyle = "#5b646e";
+  g.fillText("photo", gap + tw - 40, 22); g.fillText(n.render === "clay" ? "clay render" : "render", gap * 2 + tw * 2 - 60, 22);
+  [[photo, gap], [rend, gap * 2 + tw]].forEach(([im, ox]) => {
+    const iw = im.naturalWidth, ih = im.naturalHeight;
+    g.drawImage(im, x0 * iw, y0 * ih, (x1 - x0) * iw, (y1 - y0) * ih, ox, head, tw, th);
+    const P = ([x, y]) => [ox + (x - x0) / (x1 - x0) * tw, head + (y - y0) / (y1 - y0) * th];
+    const line = (arr, closed, col, w) => {
+      if (arr.length < 2) return;
+      g.beginPath(); arr.map(P).forEach(([u, v], i) => (i ? g.lineTo(u, v) : g.moveTo(u, v)));
+      if (closed) g.closePath();
+      g.lineJoin = "round"; g.lineCap = "round";
+      g.strokeStyle = "rgba(0,0,0,.45)"; g.lineWidth = w + 2.5; g.stroke();
+      g.strokeStyle = col; g.lineWidth = w; g.stroke();
+    };
+    line(shapeOf(n), isClosed(n), "#10b4d3", 2);
+    for (const st of n.sketch || []) line(strokePts(st), false, "#ff3d8b", 2.6);
+  });
+  if (pw3) {                                           // the reviewer's sketch, as drawn on the pad
+    const ox = gap * 3 + tw * 2;
+    g.fillStyle = "#5b646e"; g.font = "12px system-ui, sans-serif"; g.fillText("sketch", ox + pw3 - 44, 22);
+    g.strokeStyle = "#d3d8dd"; g.lineWidth = 1; g.strokeRect(ox + 0.5, head + 0.5, pw3 - 1, th - 1);
+    for (const st of padS) {
+      const P = strokePts(st.p);
+      g.beginPath(); P.forEach(([x, y], i) => (i ? g.lineTo(ox + x * pw3, head + y * th) : g.moveTo(ox + x * pw3, head + y * th)));
+      g.strokeStyle = st.c || "#15181c"; g.lineWidth = 2.4; g.lineCap = "round"; g.lineJoin = "round"; g.stroke();
+    }
+  }
+  return new Promise((ok) => cv.toBlob(ok, "image/png"));
+}
+
+function buildMd() {
+  const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+  const all = [...notes.values()];
+  const counts = Object.fromEntries(SEV.map(([v]) => [v, all.filter((n) => n.severity === v).length]));
+  const L = [];
+  L.push(`# Perfume bottle — reviewer feedback on iteration ${ITER}`, "");
+  L.push(`Written with the Reconstruction Review page, ${stamp} UTC. ${all.length} note${all.length === 1 ? "" : "s"}: ${counts.must} must fix, ${counts.should} should fix, ${counts.minor} minor.`, "");
+  L.push("Each note has a picture in `images/`: the photo crop next to the render crop, the marked region in cyan and the reviewer's drawing of what it should look like in pink.",
+    "Notes marked \"Infer from the images\" carry no text on purpose: the reader must find the difference by comparing the marked region closely in both crops.",
+    "Round 1: describe here what changed since the last review.", "");
+  for (const v of VIEWS) {
+    const list = viewNotes(v.id);
+    if (!list.length) continue;
+    L.push(`## ${v.label} — ref_${v.id}.png vs ${list[0].render === "clay" ? "clay" : "lux"}_${v.id}.png`, "");
+    list.forEach((n, i) => {
+      const sev = SEV.find(([x]) => x === n.severity)[1];
+      const inferOnly = !(n.text || "").trim() && !((n.sketch || []).length) && !((n.pad || []).length);
+      const txt = inferOnly ? "**Infer from the images.** No comment: compare this exact region closely in the photo and the render (shape, edges, lines, highlights, colour, texture) and work out what differs." : (n.text || "").trim();
+      const sk = (n.sketch || []).filter((st) => st && st.length >= 4).length;
+      L.push(`${i + 1}. **${sev}.** ${txt.replace(/\n+/g, " ")}`);
+      const pk = (n.pad || []).filter((st) => st && st.p && st.p.length >= 4).length;
+      L.push(`   - ${where(n)}${sk ? `; drawing on the images (${sk} stroke${sk === 1 ? "" : "s"})` : ""}${pk ? `; sketch (${pk} stroke${pk === 1 ? "" : "s"}, last panel of the picture)` : ""}`);
+      L.push(`   - ![${v.label} ${i + 1}](images/${figName(n)})`);
+    });
+    L.push("");
+  }
+  if (!all.length) L.push("No notes yet.", "");
+  const must = all.filter((n) => n.severity === "must");
+  if (must.length) {
+    L.push("## Must-fix summary", "");
+    for (const n of must) L.push(`- ${VIEWS.find((v) => v.id === n.view).label}, ${viewNotes(n.view).indexOf(n) + 1}: ${((n.text || "").trim() || "marked region").replace(/\n+/g, " ")}`);
+    L.push("");
+  }
+  return { md: L.join("\n"), count: all.length };
+}
+
+let lastMd = "", lastFigs = [];
+$("gen").onclick = async () => {
+  for (const [id, t] of timers) { clearTimeout(t); const m = notes.get(id); if (m && m._dirty) persist(id); }
+  const { md, count } = buildMd();
+  lastMd = md; lastFigs = [];
+  $("mdOut").textContent = md;
+  $("figs").innerHTML = "";
+  $("mMeta").textContent = `iteration ${ITER} · ${count} note${count === 1 ? "" : "s"}`;
+  $("modal").hidden = false;
+  $("closeMd").focus();
+  $("mStatus").textContent = "Drawing the pictures…";
+  for (const n of [...notes.values()].sort((a, b) => (a.view + a.created < b.view + b.created ? -1 : 1))) {
+    try {
+      const blob = await figure(n);
+      const name = figName(n);
+      lastFigs.push({ name, blob });
+      const im = document.createElement("img"); im.src = URL.createObjectURL(blob); im.alt = name; im.title = name;
+      $("figs").appendChild(im);
+    } catch { /* an image that failed to load: the note stays in the text */ }
+  }
+  $("saveMd").hidden = !(downloads && window.JSZip);
+  if (store && store.kind === "db") {
+    $("mStatus").textContent = "Sending to Claude…";
+    const ids = {};
+    if (assets) {
+      for (const f of lastFigs) {
+        try { ids[f.name] = (await assets.upload(f.blob, { type: "image/png" })).id; } catch { /* keep going */ }
+      }
+    }
+    try {
+      await store.exportMd(md, count, ids);
+      const n = Object.keys(ids).length;
+      $("mStatus").textContent = `Claude can read this export and its ${n} picture${n === 1 ? "" : "s"} from the page. You can also save everything as a zip.`;
+    } catch { $("mStatus").textContent = "Couldn't store the export for Claude. Save the zip instead."; }
+  } else {
+    $("mStatus").textContent = "This page isn't connected, so Claude can't read the export. Save the zip instead.";
+  }
+};
+function closeModal() { $("modal").hidden = true; }
+$("closeMd").onclick = closeModal;
+$("modal").onclick = (e) => { if (e.target === $("modal")) closeModal(); };
+$("copyMd").onclick = () => {
+  const done = () => { $("copyMd").textContent = "Copied"; setTimeout(() => ($("copyMd").textContent = "Copy text"), 1500); };
+  const fallback = () => { const r = document.createRange(); r.selectNodeContents($("mdOut")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); $("mStatus").textContent = "Text selected: press Ctrl+C or ⌘C to copy."; };
+  try { navigator.clipboard.writeText(lastMd).then(done, fallback); } catch { fallback(); }
+};
+$("saveMd").onclick = async () => {
+  if (!downloads || !window.JSZip) return;
+  const zip = new JSZip();
+  zip.file(`reconstruction_feedback_iteration_${ITER}_final_review.md`, lastMd);
+  for (const f of lastFigs) zip.file(`images/${f.name}`, f.blob);
+  const blob = await zip.generateAsync({ type: "blob" });
+  try { await downloads.save({ filename: `feedback_iteration_${ITER}_final.zip`, data: blob }); $("mStatus").textContent = "Zip saved."; }
+  catch (e) { if (e && e.code !== "declined") $("mStatus").textContent = "The zip couldn't be saved here."; }
+};
+
+$("iterNo").textContent = ITER;
+$("pv").hidden = !PREVIEW;
+$("fin").hidden = PREVIEW;
+buildStages();
+render();
+initStore();
+</script>
+

@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+refs/*.png
+refs/*.jpg
+mesh/
+mesh_cut/
+*.npz
+*.blend
+*.blend1
+*.mp4
+work/
