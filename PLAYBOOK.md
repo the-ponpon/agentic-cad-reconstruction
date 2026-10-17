@@ -58,11 +58,17 @@ ref photos ──► measure (pixels → units) ──► keel model (B-rep) ─
    (`off=key`, `noglass=1`, `hdri=0`) and measure pixel values. That found the HDRI as the culprit in one pass.
 9. **Measure, don't eyeball.** Sample photo pixels (colour, edges) with numpy. Every number in the model should trace
    back to a measurement or a stated assumption, and say so in a comment.
-10. **Archive before each iteration** (renders, meshes, scripts, keel revision, script hashes): review documents link
+10. **Study the references at native resolution, and write a detail inventory before modelling.** Look at every
+    photo, close-ups above all, in full-resolution tiles (about 1000 px), never only on downscaled sheets. For each
+    part, write down what the photo shows, what the model has, and what to build: counts (spider arms, bolts, slots),
+    edges (chamfers, sharp ridges), separate small parts (seals, faceplates, caps), prints and finishes. Compare renders
+    against the same native crops. On the bike, parts built from 500 px thumbnails came out wrong in ways one full-res
+    crop showed at once (a five-arm rotor spider modelled with six, a classic stem taken for an integrated one).
+11. **Archive before each iteration** (renders, meshes, scripts, keel revision, script hashes): review documents link
     to files that get overwritten.
-11. **Fast renderer until the geometry is right.** Geometry rounds use a preview renderer that takes seconds per view
+12. **Fast renderer until the geometry is right.** Geometry rounds use a preview renderer that takes seconds per view
     (Cycles on the GPU); the slow, physically richer renderer is for the look once the shape has passed.
-12. **Evaluation is external; the plan drives the work.** Each iteration is defined by `iteration_N_plan.md`, written
+13. **Evaluation is external; the plan drives the work.** Each iteration is defined by `iteration_N_plan.md`, written
     from an external review. The modeller executes the plan and delivers renders. It does not grade its own results:
     judging fidelity is the external reviewer's job, and their next review starts the next iteration (section 8).
 
@@ -350,6 +356,7 @@ floor a dark material.
 ## 12. Checklist to start a new object
 
 - [ ] Copy the previous object's scripts as a template; rename refs `ref_<view>.png`.
+- [ ] Study every photo at native resolution (~1000 px tiles); write a per-part detail inventory (photo → model → to build).
 - [ ] Measure key dimensions + decide scale constraint; write them as named constants with source comments.
 - [ ] Build the outer shape; clay render all views; section overlay; fix until the gate passes.
 - [ ] Fit cameras (silhouette, then landmarks for close-ups); point splats, not hulls, for objects with holes.
