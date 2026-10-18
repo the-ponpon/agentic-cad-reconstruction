@@ -1,5 +1,6 @@
 """CAD-style picture of the B-rep for the post: white surfaces with a surface-following grid, and the exact B-rep
-edges (face boundaries) as dark curves. python brep_viz.py [az=-52.8] [out=story/brep.png]"""
+edges (face boundaries) as dark curves. python brep_viz.py [az=-52.8] [cut=1] [out=story/brep.png]
+cut=1 shows the front half removed (meshes from cut_meshes.py) with the cut faces in red."""
 import json, math, os, sys
 import numpy as np
 import bpy
@@ -64,8 +65,10 @@ def simple(name, rgb, rough=0.5):
 
 GRID = grid_material()
 EDGE = simple("edge", (0.03, 0.05, 0.12), 0.6)
-for name in ("glass_full", "cap", "collar", "pump", "label", "outlet"):
-    p = os.path.join(HERE, "mesh", f"{name}.npz")
+CUT = A.get("cut") == "1"            # cut=1: the front half removed (cut_meshes.py), the cut faces painted red
+RED = simple("cutface", (0.80, 0.05, 0.04), 0.5)
+for name in (("glass_full", "cap", "collar", "pump", "dip_tube") if CUT else ("glass_full", "cap", "collar", "pump", "label", "outlet")):
+    p = os.path.join(HERE, "mesh_cut" if CUT else "mesh", f"{name}.npz")
     if not os.path.exists(p):
         continue
     d = np.load(p)
@@ -77,6 +80,14 @@ for name in ("glass_full", "cap", "collar", "pump", "label", "outlet"):
     o = bpy.data.objects.new(name, me); sc.collection.objects.link(o)
     o.data.materials.append(GRID)
 
+if CUT:
+    for name in ("glass_full", "cap", "collar", "pump", "dip_tube", "emblem_cap", "emblem_act"):
+        p = os.path.join(HERE, "mesh_cut", f"{name}_capface.npz")
+        if not os.path.exists(p):
+            continue
+        d = np.load(p); P_ = d["points"] + np.array([0, -0.03, 0])
+        me = bpy.data.meshes.new(name + "_cap"); me.from_pydata([tuple(v) for v in P_], [], [tuple(t) for t in d["tris"]]); me.update()
+        o = bpy.data.objects.new(name + "_cap", me); sc.collection.objects.link(o); o.data.materials.append(RED)
 E = np.load(os.path.join(HERE, "brep_edges.npz"))
 cu = bpy.data.curves.new("brep_edges", "CURVE"); cu.dimensions = "3D"
 cu.bevel_depth = float(A.get("edge_r", 0.09)); cu.bevel_resolution = 2
@@ -85,10 +96,23 @@ for k in E.files:
     if k == "kinds":
         continue
     P = E[k]
-    sp = cu.splines.new("POLY"); sp.points.add(len(P) - 1)
-    for i, q in enumerate(P):
-        sp.points[i].co = (q[0], q[1], q[2], 1)
-    n += 1
+    runs = [P]
+    if CUT:                                  # keep the parts of each edge behind the cut (y >= 0)
+        keep = P[:, 1] >= 0; runs, cur = [], []
+        for q, kp in zip(P, keep):
+            if kp:
+                cur.append(q)
+            elif cur:
+                runs.append(np.array(cur)); cur = []
+        if cur:
+            runs.append(np.array(cur))
+    for R_ in runs:
+        if len(R_) < 2:
+            continue
+        sp = cu.splines.new("POLY"); sp.points.add(len(R_) - 1)
+        for i, q in enumerate(R_):
+            sp.points[i].co = (q[0], q[1], q[2], 1)
+        n += 1
 eo = bpy.data.objects.new("brep_edges", cu); sc.collection.objects.link(eo); eo.data.materials.append(EDGE)
 print("edges", n)
 
