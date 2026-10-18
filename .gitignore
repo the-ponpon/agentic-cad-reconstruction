@@ -1,7 +1,7 @@
 __pycache__/
 *.pyc
-refs/*.png
-refs/*.jpg
+ref_*.png
+ref_*.jpg
 mesh/
 mesh_cut/
 *.npz

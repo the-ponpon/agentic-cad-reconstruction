@@ -10,14 +10,30 @@ and a human reviewing each round. The worked example:
   LuxCoreRender (nested dielectrics, measured absorption, dispersion), cameras fitted to each photo, plus the
   cutaway, a Blender layout round trip, and a camera-orbit animation with a video model between ray-traced keys.
 
-The method itself (what worked, what didn't, the review loop) is in **[PLAYBOOK.md](PLAYBOOK.md)**: read it first.
+The method itself (what worked, what didn't, the review loop) is in **[PLAYBOOK.md](PLAYBOOK.md)**.
+
+## How to use it
+
+Put a few photos of your object in a folder, open **Claude Code** or **Codex** in this repo, and say:
+
+> *"Help me reconstruct the object in `myobject/` from these photos."*
+
+The agent reads `AGENTS.md` and takes it from there: it asks what the object is and for one real dimension (for the
+scale), checks your photos and your setup and helps install what's missing, fits a camera to each photo, models,
+renders, and sets up the review page. You mark what's wrong; it plans the fixes and applies them. Repeat until the
+renders match the photos.
+
+What you bring: the photos, one known size, and your eye. The agent can't judge its own fidelity, so each round
+waits for your review (the perfume took about ten). Setup is light for opaque objects (Python and Blender); glass
+and liquids also need LuxCoreRender, and a GPU helps.
 
 ## What this is, and isn't
 
 - These are working scripts from an exploration, not a library. They are readable and commented, with the
   measured values and the reasoning left in, but they assume the layout described below and you'll adapt paths.
-- **No reference photos are included**: they belong to the brands. `refs/README.md` says what to shoot or collect,
-  and how to name it. The cap emblem in `perfume/emblem.py` is a placeholder for the same reason (the original was
+- **No reference photos are included**: they belong to the brands. Put your own in the object's folder, one per
+  view, named `ref_<view>.png` (the perfume scripts expect `perfume/ref_front.png`, `ref_three_quarter.png`,
+  `ref_top.png`, `ref_neck.png`). The cap emblem in `perfume/emblem.py` is a placeholder for the same reason (the original was
   traced from the photo with `trace_emblem.py`).
 - `perfume/parade.py` is written for **[keel](https://github.com/amywork777/keel)**, a small Python CAD language on
   NVIDIA's usd-brep kernel (exact B-rep, USD output). Run it with keel's `bin/keel perfume/parade.py`; it writes the
@@ -26,19 +42,20 @@ The method itself (what worked, what didn't, the review loop) is in **[PLAYBOOK.
   time of writing, so check its terms before reusing its code. This repository's MIT licence covers only the files here.
 - Trademarks mentioned in comments belong to their owners; this is a technical exercise with no affiliation.
 
-## Using it with Claude Code
+## Working with the agent, step by step
 
-The repo is set up to be worked on by [Claude Code](https://claude.com/claude-code): `CLAUDE.md` gives the agent the
-method (the loop, the rules, where the example scripts are), and `PLAYBOOK.md` the details behind it.
+`AGENTS.md` gives the agent the onboarding and the method (the loop, the rules, where the example scripts are);
+`CLAUDE.md` points Claude Code to it, and `PLAYBOOK.md` has the details behind it.
 
-1. Clone the repo, install the requirements, and set up keel and a renderer (see Requirements).
-2. Make a folder for your object and put your reference photos in it, named `ref_<view>.png`.
-3. Start Claude Code in the repo (`claude`) and ask, for example:
-   - *"Read CLAUDE.md and PLAYBOOK.md. Reconstruct the object in `mybottle/` from its photos, using `perfume/` as
-     the template. Start by measuring the photos and fitting the cameras."*
+1. Clone the repo and make a folder for your object with your photos in it, named `ref_<view>.png`.
+2. Start the agent in the repo (`claude`, or `codex`). The first session covers the object, the scale, the photos
+   and the setup.
+3. Then ask, for example:
+   - *"Reconstruct the object in `mybottle/` from its photos, using `perfume/` as the template. Start by measuring
+     the photos and fitting the cameras."*
    - *"Render clay views from every fitted camera and build a comparison sheet."*
    - *"Publish the photo/render pairs on the review page."*
-4. Review the renders on the feedback page (`tools/review_page/`), export the notes, and give the export to Claude:
+4. Review the renders on the feedback page (`tools/review_page/`), export the notes, and give the export to the agent:
    *"Here is the review for iteration 2: write iteration_2_plan.md."* Approve the plan, let it execute, repeat.
 
 Claude does the measuring, modelling, fitting and rendering; you judge the results and steer each round.
@@ -60,7 +77,7 @@ placeholder images: a clay render stands in for the photo, and the label is blur
 | `perfume/` | model, cameras, render, review | `parade.py` (model), `fit_poses.py` + `fit_neck.py` (cameras), `section_overlay.py` (shape gate), `parade_lux.py` (LuxCore), `make_review.py` + `region_check.py` (review sheets), `cut_meshes.py` + `cutaway.py` (cutaway) |
 | `perfume/blend/` | edit the scene in Blender, render in LuxCore | `make_blend.py`, `read_layout.py`, `render_layout.sh` |
 | `perfume/` (motion) | orbit keys + video model | `orbit_segs.sh`, `orbit_ltx_3k.sh` |
-| `CLAUDE.md` | instructions for Claude Code: the loop, the rules, where the examples are | |
+| `AGENTS.md` | instructions for the agent: onboarding, the loop, the rules, where the examples are (`CLAUDE.md` imports it) | |
 | `tools/review_page/` | the feedback editor (photo vs render, marks, notes, export) | `index.html` |
 
 ## Requirements
